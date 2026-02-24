@@ -163,6 +163,7 @@ async def start_timer(project_id: int, task_id: int, notes: str = None):
     params = {
         "project_id": project_id,
         "task_id": task_id,
+        "spent_date": datetime.now().strftime("%Y-%m-%d"),
     }
 
     if notes:
