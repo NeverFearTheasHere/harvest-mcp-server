@@ -113,7 +113,11 @@ async def list_time_entries(
 
 @mcp.tool()
 async def create_time_entry(
-    project_id: int, task_id: int, spent_date: str, hours: float, notes: str = None
+    project_id: int,
+    task_id: int,
+    spent_date: str,
+    hours: float,
+    notes: str | int | None = None,
 ):
     """Create a new time entry.
 
@@ -131,8 +135,8 @@ async def create_time_entry(
         "hours": hours,
     }
 
-    if notes:
-        params["notes"] = notes
+    if notes is not None:
+        params["notes"] = str(notes)
 
     response = await harvest_request("time_entries", params, method="POST")
     return json.dumps(response, indent=2)
@@ -152,7 +156,11 @@ async def stop_timer(time_entry_id: int):
 
 
 @mcp.tool()
-async def start_timer(project_id: int, task_id: int, notes: str = None):
+async def start_timer(
+    project_id: int,
+    task_id: int,
+    notes: str | int | None = None,
+):
     """Start a new timer.
 
     Args:
@@ -166,8 +174,8 @@ async def start_timer(project_id: int, task_id: int, notes: str = None):
         "spent_date": datetime.now().strftime("%Y-%m-%d"),
     }
 
-    if notes:
-        params["notes"] = notes
+    if notes is not None:
+        params["notes"] = str(notes)
 
     response = await harvest_request("time_entries", params, method="POST")
     return json.dumps(response, indent=2)
@@ -252,7 +260,7 @@ async def get_unsubmitted_timesheets(
     per_page: int = None,
 ):
     """Get unsubmitted timesheets (time entries that haven't been submitted for approval).
-    
+
     This function queries for time entries that are not yet closed/submitted, which typically
     means they are still editable and haven't been submitted for approval or invoicing.
 
@@ -279,7 +287,7 @@ async def get_unsubmitted_timesheets(
 
     # Get all time entries first
     response = await harvest_request("time_entries", params)
-    
+
     # Filter for unsubmitted entries (those that are not closed)
     unsubmitted_entries = []
     if "time_entries" in response:
@@ -287,7 +295,7 @@ async def get_unsubmitted_timesheets(
             # Time entries that are not closed are considered unsubmitted
             if not entry.get("is_closed", False):
                 unsubmitted_entries.append(entry)
-    
+
     # Create a response structure similar to the original API response
     filtered_response = {
         "time_entries": unsubmitted_entries,
@@ -297,9 +305,9 @@ async def get_unsubmitted_timesheets(
         "next_page": None,
         "previous_page": None,
         "page": response.get("page", 1),
-        "links": response.get("links", {})
+        "links": response.get("links", {}),
     }
-    
+
     return json.dumps(filtered_response, indent=2)
 
 
