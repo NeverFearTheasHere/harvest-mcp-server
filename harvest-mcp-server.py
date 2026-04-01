@@ -97,6 +97,7 @@ async def get_user_details(user_id: int):
 @mcp.tool()
 async def list_time_entries(
     user_id: int = None,
+    project_id: int = None,
     from_date: str = None,
     to_date: str = None,
     is_running: bool = None,
@@ -106,6 +107,7 @@ async def list_time_entries(
 
     Args:
         user_id: Filter by user ID
+        project_id: Only return time entries belonging to the project with the given ID
         from_date: Only return time entries with a spent_date on or after the given date (YYYY-MM-DD)
         to_date: Only return time entries with a spent_date on or before the given date (YYYY-MM-DD)
         is_running: Pass true to only return running time entries and false to return non-running time entries
@@ -114,6 +116,8 @@ async def list_time_entries(
     params = {}
     if user_id is not None:
         params["user_id"] = str(user_id)
+    if project_id is not None:
+        params["project_id"] = str(project_id)
     if from_date is not None:
         params["from"] = from_date
     if to_date is not None:
