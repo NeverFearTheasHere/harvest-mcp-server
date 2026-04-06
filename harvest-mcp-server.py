@@ -16,6 +16,22 @@ if not HARVEST_ACCOUNT_ID or not HARVEST_API_KEY:
         "Missing Harvest API credentials. Set HARVEST_ACCOUNT_ID and HARVEST_API_KEY environment variables."
     )
 
+# Read-only mode: when enabled, write operations return an error message
+# instead of modifying Harvest data.
+HARVEST_READ_ONLY = os.environ.get("HARVEST_READ_ONLY", "").lower() in ("true", "1", "yes")
+
+READ_ONLY_MESSAGE = json.dumps(
+    {
+        "error": "read_only_mode",
+        "message": (
+            "This Harvest MCP server is running in read-only mode. "
+            "To enable write operations, remove the HARVEST_READ_ONLY environment variable "
+            "or set it to 'false' in your MCP server configuration."
+        ),
+    },
+    indent=2,
+)
+
 
 # Helper function to make Harvest API requests
 async def harvest_request(path, params=None, method="GET"):
@@ -128,6 +144,9 @@ async def create_time_entry(
         hours: The number of hours spent
         notes: Optional notes about the time entry
     """
+    if HARVEST_READ_ONLY:
+        return READ_ONLY_MESSAGE
+
     params = {
         "project_id": project_id,
         "task_id": task_id,
@@ -149,6 +168,9 @@ async def stop_timer(time_entry_id: int):
     Args:
         time_entry_id: The ID of the running time entry to stop
     """
+    if HARVEST_READ_ONLY:
+        return READ_ONLY_MESSAGE
+
     response = await harvest_request(
         f"time_entries/{time_entry_id}/stop", method="PATCH"
     )
@@ -168,6 +190,9 @@ async def start_timer(
         task_id: The ID of the task to associate with the time entry
         notes: Optional notes about the time entry
     """
+    if HARVEST_READ_ONLY:
+        return READ_ONLY_MESSAGE
+
     params = {
         "project_id": project_id,
         "task_id": task_id,

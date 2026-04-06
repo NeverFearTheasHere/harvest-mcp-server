@@ -91,6 +91,33 @@ You can modify the server code to add more functionality or customize the existi
 - **Connection Issues**: Verify that your Claude Desktop configuration has the correct path to the server script.
 - **Missing Dependencies**: Ensure you've installed all required packages in your Python environment.
 
+## Read-Only Mode
+
+You can run the server in read-only mode by setting the `HARVEST_READ_ONLY` environment variable to `true`. This disables all write operations (creating time entries, starting timers, and stopping timers) while keeping all read operations available.
+
+```json
+{
+    "mcpServers": {
+        "harvest": {
+            "command": "uv",
+            "args": [
+              "run",
+              "--directory",
+              "change_directory",
+              "harvest-mcp-server.py"
+            ],
+            "env": {
+                "HARVEST_ACCOUNT_ID": "account_id",
+                "HARVEST_API_KEY": "api_key",
+                "HARVEST_READ_ONLY": "true"
+            }
+        }
+    }
+}
+```
+
+When read-only mode is enabled, any attempt to call a write tool will return an error message explaining that the server is in read-only mode and how to enable write access.
+
 ## Security Notes
 
 This server requires your Harvest API credentials to function. Make sure to:
