@@ -39,10 +39,10 @@ The server provides the following functionality:
 - Harvest API key and Account ID
 
 ### Integrating with Claude Desktop
-
 1. Create or edit your Claude Desktop configuration file:
    - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-   - Windows: `%LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\claude_desktop_config.json`
+   - Windows (MSIX installs — the default from [claude.ai/download](https://claude.ai/download)): `%LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\claude_desktop_config.json`
+   - Windows (older/non-MSIX installs): `%APPDATA%\Claude\claude_desktop_config.json`
 
 2. Add the Harvest MCP server configuration:
    ```json
