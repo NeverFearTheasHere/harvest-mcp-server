@@ -426,6 +426,7 @@ async def get_unsubmitted_timesheets(
 
 
 @mcp.tool()
+@requires_write
 async def create_invoice_from_time_and_expenses(
     client_id: int,
     project_ids: list[int],
@@ -473,53 +474,33 @@ async def create_invoice_from_time_and_expenses(
         discount: Percentage discount on the invoice
     """
     line_items_import = {"project_ids": project_ids}
-
     if time_summary_type is not None:
-        time_import = {"summary_type": time_summary_type}
-        if time_from is not None:
-            time_import["from"] = time_from
-        if time_to is not None:
-            time_import["to"] = time_to
-        line_items_import["time"] = time_import
-
+        line_items_import["time"] = build_body(
+            summary_type=time_summary_type,
+            **{"from": time_from, "to": time_to},
+        )
     if expense_summary_type is not None:
-        expense_import = {"summary_type": expense_summary_type}
-        if expense_from is not None:
-            expense_import["from"] = expense_from
-        if expense_to is not None:
-            expense_import["to"] = expense_to
-        if expense_attach_receipt is not None:
-            expense_import["attach_receipt"] = expense_attach_receipt
-        line_items_import["expenses"] = expense_import
+        line_items_import["expenses"] = build_body(
+            summary_type=expense_summary_type,
+            attach_receipt=expense_attach_receipt,
+            **{"from": expense_from, "to": expense_to},
+        )
 
-    params = {
-        "client_id": client_id,
-        "line_items_import": line_items_import,
-    }
-
-    if issue_date is not None:
-        params["issue_date"] = issue_date
-    if due_date is not None:
-        params["due_date"] = due_date
-    if payment_term is not None:
-        params["payment_term"] = payment_term
-    if subject is not None:
-        params["subject"] = subject
-    if notes is not None:
-        params["notes"] = notes
-    if number is not None:
-        params["number"] = number
-    if purchase_order is not None:
-        params["purchase_order"] = purchase_order
-    if currency is not None:
-        params["currency"] = currency
-    if tax is not None:
-        params["tax"] = tax
-    if tax2 is not None:
-        params["tax2"] = tax2
-    if discount is not None:
-        params["discount"] = discount
-
+    params = build_body(
+        client_id=client_id,
+        line_items_import=line_items_import,
+        issue_date=issue_date,
+        due_date=due_date,
+        payment_term=payment_term,
+        subject=subject,
+        notes=notes,
+        number=number,
+        purchase_order=purchase_order,
+        currency=currency,
+        tax=tax,
+        tax2=tax2,
+        discount=discount,
+    )
     response = await harvest_request("invoices", params, method="POST")
     return json.dumps(response, indent=2)
 
@@ -545,22 +526,14 @@ async def list_invoices(
         page: The page number for pagination
         per_page: The number of records to return per page (1-2000)
     """
-    params = {}
-    if client_id is not None:
-        params["client_id"] = str(client_id)
-    if project_id is not None:
-        params["project_id"] = str(project_id)
-    if state is not None:
-        params["state"] = state
-    if from_date is not None:
-        params["from"] = from_date
-    if to_date is not None:
-        params["to"] = to_date
-    if page is not None:
-        params["page"] = str(page)
-    if per_page is not None:
-        params["per_page"] = str(per_page)
-
+    params = build_query(
+        client_id=client_id,
+        project_id=project_id,
+        state=state,
+        page=page,
+        per_page=per_page,
+        **{"from": from_date, "to": to_date},
+    )
     response = await harvest_request("invoices", params)
     return json.dumps(response, indent=2)
 
@@ -588,6 +561,7 @@ async def list_invoice_payments(invoice_id: int):
 
 
 @mcp.tool()
+@requires_write
 async def create_invoice_payment(
     invoice_id: int,
     amount: float,
@@ -604,14 +578,12 @@ async def create_invoice_payment(
         paid_date: Date the payment was made (YYYY-MM-DD). Defaults to today.
         notes: Optional notes about the payment
     """
-    params = {"amount": amount}
-    if paid_at is not None:
-        params["paid_at"] = paid_at
-    if paid_date is not None:
-        params["paid_date"] = paid_date
-    if notes is not None:
-        params["notes"] = notes
-
+    params = build_body(
+        amount=amount,
+        paid_at=paid_at,
+        paid_date=paid_date,
+        notes=notes,
+    )
     response = await harvest_request(f"invoices/{invoice_id}/payments", params, method="POST")
     return json.dumps(response, indent=2)
 
@@ -631,17 +603,17 @@ async def get_uninvoiced_report(
         page: The page number for pagination
         per_page: The number of records to return per page (1-2000)
     """
-    params = {"from": from_date, "to": to_date}
-    if page is not None:
-        params["page"] = str(page)
-    if per_page is not None:
-        params["per_page"] = str(per_page)
-
+    params = build_query(
+        page=page,
+        per_page=per_page,
+        **{"from": from_date, "to": to_date},
+    )
     response = await harvest_request("reports/uninvoiced", params)
     return json.dumps(response, indent=2)
 
 
 @mcp.tool()
+@requires_write
 async def update_time_entry(
     time_entry_id: int,
     project_id: int = None,
@@ -660,23 +632,19 @@ async def update_time_entry(
         hours: The number of hours spent
         notes: Notes about the time entry
     """
-    params = {}
-    if project_id is not None:
-        params["project_id"] = project_id
-    if task_id is not None:
-        params["task_id"] = task_id
-    if spent_date is not None:
-        params["spent_date"] = spent_date
-    if hours is not None:
-        params["hours"] = hours
-    if notes is not None:
-        params["notes"] = str(notes)
-
+    params = build_body(
+        project_id=project_id,
+        task_id=task_id,
+        spent_date=spent_date,
+        hours=hours,
+        notes=str(notes) if notes is not None else None,
+    )
     response = await harvest_request(f"time_entries/{time_entry_id}", params, method="PATCH")
     return json.dumps(response, indent=2)
 
 
 @mcp.tool()
+@requires_write
 async def delete_time_entry(time_entry_id: int):
     """Delete a time entry.
 
@@ -708,12 +676,7 @@ async def list_project_user_assignments(project_id: int, page: int = None, per_p
         page: The page number for pagination
         per_page: The number of records to return per page (1-2000)
     """
-    params = {}
-    if page is not None:
-        params["page"] = str(page)
-    if per_page is not None:
-        params["per_page"] = str(per_page)
-
+    params = build_query(page=page, per_page=per_page)
     response = await harvest_request(f"projects/{project_id}/user_assignments", params)
     return json.dumps(response, indent=2)
 
@@ -727,17 +690,13 @@ async def list_project_task_assignments(project_id: int, page: int = None, per_p
         page: The page number for pagination
         per_page: The number of records to return per page (1-2000)
     """
-    params = {}
-    if page is not None:
-        params["page"] = str(page)
-    if per_page is not None:
-        params["per_page"] = str(per_page)
-
+    params = build_query(page=page, per_page=per_page)
     response = await harvest_request(f"projects/{project_id}/task_assignments", params)
     return json.dumps(response, indent=2)
 
 
 @mcp.tool()
+@requires_write
 async def update_invoice(
     invoice_id: int,
     line_items: list[dict] = None,
@@ -789,34 +748,21 @@ async def update_invoice(
         due_date: Date the invoice is due (YYYY-MM-DD)
         payment_term: Payment term: upon receipt, net 15, net 30, net 45, net 60, or custom
     """
-    params = {}
-    if line_items is not None:
-        params["line_items"] = line_items
-    if client_id is not None:
-        params["client_id"] = client_id
-    if number is not None:
-        params["number"] = number
-    if purchase_order is not None:
-        params["purchase_order"] = purchase_order
-    if tax is not None:
-        params["tax"] = tax
-    if tax2 is not None:
-        params["tax2"] = tax2
-    if discount is not None:
-        params["discount"] = discount
-    if subject is not None:
-        params["subject"] = subject
-    if notes is not None:
-        params["notes"] = notes
-    if currency is not None:
-        params["currency"] = currency
-    if issue_date is not None:
-        params["issue_date"] = issue_date
-    if due_date is not None:
-        params["due_date"] = due_date
-    if payment_term is not None:
-        params["payment_term"] = payment_term
-
+    params = build_body(
+        line_items=line_items,
+        client_id=client_id,
+        number=number,
+        purchase_order=purchase_order,
+        tax=tax,
+        tax2=tax2,
+        discount=discount,
+        subject=subject,
+        notes=notes,
+        currency=currency,
+        issue_date=issue_date,
+        due_date=due_date,
+        payment_term=payment_term,
+    )
     response = await harvest_request(f"invoices/{invoice_id}", params, method="PATCH")
     return json.dumps(response, indent=2)
 
