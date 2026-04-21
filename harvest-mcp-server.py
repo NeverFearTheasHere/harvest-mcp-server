@@ -652,6 +652,90 @@ async def list_project_task_assignments(project_id: int, page: int = None, per_p
     return json.dumps(response, indent=2)
 
 
+@mcp.tool()
+async def update_invoice(
+    invoice_id: int,
+    line_items: list[dict] = None,
+    client_id: int = None,
+    number: str = None,
+    purchase_order: str = None,
+    tax: float = None,
+    tax2: float = None,
+    discount: float = None,
+    subject: str = None,
+    notes: str = None,
+    currency: str = None,
+    issue_date: str = None,
+    due_date: str = None,
+    payment_term: str = None,
+):
+    """Update an existing invoice, including adding, editing, or removing line items.
+
+    To edit line items, pass a list of line item objects in `line_items`. Each object can be:
+      - A NEW line item: omit `id`. Fields: kind (required, e.g. "Service" or "Product"),
+        description, quantity, unit_price, project_id, taxed, taxed2.
+      - An UPDATE to an existing line item: include `id` of the existing line item plus any
+        fields you want to change (description, quantity, unit_price, kind, project_id,
+        taxed, taxed2).
+      - A REMOVAL: include `id` of the existing line item and `_destroy: true`.
+
+    Line items not mentioned in the list are left unchanged.
+
+    Example line_items:
+      [
+        {"id": 123, "description": "Updated description", "quantity": 2, "unit_price": 150.0},
+        {"id": 456, "_destroy": True},
+        {"kind": "Service", "description": "New work", "quantity": 5, "unit_price": 100.0}
+      ]
+
+    Args:
+        invoice_id: The ID of the invoice to update
+        line_items: List of line item objects to create, update, or remove (see description)
+        client_id: Change the client associated with this invoice
+        number: Update the invoice number
+        purchase_order: The purchase order number
+        tax: First additional tax percentage
+        tax2: Second additional tax percentage
+        discount: Discount percentage
+        subject: The invoice subject
+        notes: Additional notes
+        currency: ISO 4217 currency code
+        issue_date: Date the invoice was issued (YYYY-MM-DD)
+        due_date: Date the invoice is due (YYYY-MM-DD)
+        payment_term: Payment term: upon receipt, net 15, net 30, net 45, net 60, or custom
+    """
+    params = {}
+    if line_items is not None:
+        params["line_items"] = line_items
+    if client_id is not None:
+        params["client_id"] = client_id
+    if number is not None:
+        params["number"] = number
+    if purchase_order is not None:
+        params["purchase_order"] = purchase_order
+    if tax is not None:
+        params["tax"] = tax
+    if tax2 is not None:
+        params["tax2"] = tax2
+    if discount is not None:
+        params["discount"] = discount
+    if subject is not None:
+        params["subject"] = subject
+    if notes is not None:
+        params["notes"] = notes
+    if currency is not None:
+        params["currency"] = currency
+    if issue_date is not None:
+        params["issue_date"] = issue_date
+    if due_date is not None:
+        params["due_date"] = due_date
+    if payment_term is not None:
+        params["payment_term"] = payment_term
+
+    response = await harvest_request(f"invoices/{invoice_id}", params, method="PATCH")
+    return json.dumps(response, indent=2)
+
+
 if __name__ == "__main__":
     # Initialize and run the server
     mcp.run(transport="stdio")
