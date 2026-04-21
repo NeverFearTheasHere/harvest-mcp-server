@@ -697,6 +697,176 @@ async def list_project_task_assignments(project_id: int, page: int = None, per_p
 
 @mcp.tool()
 @requires_write
+async def update_project(
+    project_id: int,
+    client_id: int = None,
+    name: str = None,
+    is_billable: bool = None,
+    bill_by: str = None,
+    budget_by: str = None,
+    code: str = None,
+    is_active: bool = None,
+    is_fixed_fee: bool = None,
+    hourly_rate: float = None,
+    budget: float = None,
+    budget_is_monthly: bool = None,
+    notify_when_over_budget: bool = None,
+    over_budget_notification_percentage: float = None,
+    show_budget_to_all: bool = None,
+    cost_budget: float = None,
+    cost_budget_include_expenses: bool = None,
+    fee: float = None,
+    notes: str = None,
+    starts_on: str = None,
+    ends_on: str = None,
+):
+    """Update an existing project.
+
+    Args:
+        project_id: The ID of the project to update
+        client_id: The ID of the client to associate with the project
+        name: The name of the project
+        is_billable: Whether the project is billable or not
+        bill_by: The method by which the project is invoiced - "Project", "Tasks", "People", or "none"
+        budget_by: The method by which the project is budgeted - "project", "project_cost", "task", "task_fees", "person", or "none"
+        code: The project code
+        is_active: Whether the project is active or archived
+        is_fixed_fee: Whether the project is a fixed-fee project or not
+        hourly_rate: Rate for projects billed by Project Hourly Rate
+        budget: The budget in hours for the project when budget_by is "project" or "none"
+        budget_is_monthly: Option to have the budget reset every month
+        notify_when_over_budget: Whether project managers should be notified when the project goes over budget
+        over_budget_notification_percentage: Percentage value used to trigger over budget email alerts (0.0 to 100.0)
+        show_budget_to_all: Option to show project budget to all employees (defaults to project managers and up)
+        cost_budget: The monetary budget for the project when budget_by is "project_cost"
+        cost_budget_include_expenses: Option for budget of "project_cost" to include tracked expenses
+        fee: The amount you plan to invoice for the project (only used by fixed-fee projects)
+        notes: Project notes
+        starts_on: Date the project was started (YYYY-MM-DD)
+        ends_on: Date the project will end (YYYY-MM-DD)
+    """
+    params = build_body(
+        client_id=client_id,
+        name=name,
+        is_billable=is_billable,
+        bill_by=bill_by,
+        budget_by=budget_by,
+        code=code,
+        is_active=is_active,
+        is_fixed_fee=is_fixed_fee,
+        hourly_rate=hourly_rate,
+        budget=budget,
+        budget_is_monthly=budget_is_monthly,
+        notify_when_over_budget=notify_when_over_budget,
+        over_budget_notification_percentage=over_budget_notification_percentage,
+        show_budget_to_all=show_budget_to_all,
+        cost_budget=cost_budget,
+        cost_budget_include_expenses=cost_budget_include_expenses,
+        fee=fee,
+        notes=notes,
+        starts_on=starts_on,
+        ends_on=ends_on,
+    )
+    response = await harvest_request(f"projects/{project_id}", params, method="PATCH")
+    return json.dumps(response, indent=2)
+
+
+@mcp.tool()
+@requires_write
+async def create_task(
+    name: str,
+    billable_by_default: bool = None,
+    default_hourly_rate: float = None,
+    is_default: bool = None,
+    is_active: bool = None,
+):
+    """Create a new task.
+
+    Args:
+        name: The name of the task
+        billable_by_default: Whether the task should be billable by default when added to a project
+        default_hourly_rate: The default hourly rate for the task when added to a project
+        is_default: Whether the task should be added to new projects by default
+        is_active: Whether the task is active or archived
+    """
+    params = build_body(
+        name=name,
+        billable_by_default=billable_by_default,
+        default_hourly_rate=default_hourly_rate,
+        is_default=is_default,
+        is_active=is_active,
+    )
+    response = await harvest_request("tasks", params, method="POST")
+    return json.dumps(response, indent=2)
+
+
+@mcp.tool()
+@requires_write
+async def create_project_task_assignment(
+    project_id: int,
+    task_id: int,
+    is_active: bool = None,
+    billable: bool = None,
+    hourly_rate: float = None,
+    budget: float = None,
+):
+    """Assign a task to a project.
+
+    Args:
+        project_id: The ID of the project
+        task_id: The ID of the task to assign
+        is_active: Whether the task assignment is active
+        billable: Whether the task is billable for this project
+        hourly_rate: Rate for this task when bill_by is "Tasks"
+        budget: Budget for this task when budget_by is "task"
+    """
+    params = build_body(
+        task_id=task_id,
+        is_active=is_active,
+        billable=billable,
+        hourly_rate=hourly_rate,
+        budget=budget,
+    )
+    response = await harvest_request(f"projects/{project_id}/task_assignments", params, method="POST")
+    return json.dumps(response, indent=2)
+
+
+@mcp.tool()
+@requires_write
+async def create_project_user_assignment(
+    project_id: int,
+    user_id: int,
+    is_active: bool = None,
+    is_project_manager: bool = None,
+    use_default_rates: bool = None,
+    hourly_rate: float = None,
+    budget: float = None,
+):
+    """Assign a user to a project.
+
+    Args:
+        project_id: The ID of the project
+        user_id: The ID of the user to assign
+        is_active: Whether the user assignment is active
+        is_project_manager: Whether the user should be a project manager for this project
+        use_default_rates: Whether to use the user's default rates for this project
+        hourly_rate: Rate for this user when bill_by is "People"
+        budget: Budget for this user when budget_by is "person"
+    """
+    params = build_body(
+        user_id=user_id,
+        is_active=is_active,
+        is_project_manager=is_project_manager,
+        use_default_rates=use_default_rates,
+        hourly_rate=hourly_rate,
+        budget=budget,
+    )
+    response = await harvest_request(f"projects/{project_id}/user_assignments", params, method="POST")
+    return json.dumps(response, indent=2)
+
+
+@mcp.tool()
+@requires_write
 async def update_invoice(
     invoice_id: int,
     line_items: list[dict] = None,
