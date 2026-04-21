@@ -340,6 +340,105 @@ async def get_unsubmitted_timesheets(
     return json.dumps(filtered_response, indent=2)
 
 
+@mcp.tool()
+async def create_invoice_from_time_and_expenses(
+    client_id: int,
+    project_ids: list[int],
+    time_summary_type: str = None,
+    time_from: str = None,
+    time_to: str = None,
+    expense_summary_type: str = None,
+    expense_from: str = None,
+    expense_to: str = None,
+    expense_attach_receipt: bool = None,
+    issue_date: str = None,
+    due_date: str = None,
+    payment_term: str = None,
+    subject: str = None,
+    notes: str = None,
+    number: str = None,
+    purchase_order: str = None,
+    currency: str = None,
+    tax: float = None,
+    tax2: float = None,
+    discount: float = None,
+):
+    """Create an invoice based on tracked time and expenses for a client.
+
+    Args:
+        client_id: The ID of the client this invoice will be sent to
+        project_ids: The IDs of the projects to include time/expenses from
+        time_summary_type: How to summarize time entries per line item: project, task, people, or detailed. Omit to exclude time.
+        time_from: Start date for included time entries (YYYY-MM-DD)
+        time_to: End date for included time entries (YYYY-MM-DD)
+        expense_summary_type: How to summarize expenses per line item: project, category, people, or detailed. Omit to exclude expenses.
+        expense_from: Start date for included expenses (YYYY-MM-DD)
+        expense_to: End date for included expenses (YYYY-MM-DD)
+        expense_attach_receipt: If true, attach a PDF expense report with receipts to the invoice
+        issue_date: Date the invoice was issued (YYYY-MM-DD). Defaults to today.
+        due_date: Date the invoice is due (YYYY-MM-DD)
+        payment_term: Timeframe client is expected to pay: upon receipt, net 15, net 30, net 45, net 60, or custom
+        subject: The invoice subject
+        notes: Additional notes to include on the invoice
+        number: Invoice number. Auto-generated if not provided.
+        purchase_order: The purchase order number associated with this invoice
+        currency: ISO 4217 currency code. Defaults to the client's currency.
+        tax: Percentage for first additional tax on the invoice
+        tax2: Percentage for second additional tax on the invoice
+        discount: Percentage discount on the invoice
+    """
+    line_items_import = {"project_ids": project_ids}
+
+    if time_summary_type is not None:
+        time_import = {"summary_type": time_summary_type}
+        if time_from is not None:
+            time_import["from"] = time_from
+        if time_to is not None:
+            time_import["to"] = time_to
+        line_items_import["time"] = time_import
+
+    if expense_summary_type is not None:
+        expense_import = {"summary_type": expense_summary_type}
+        if expense_from is not None:
+            expense_import["from"] = expense_from
+        if expense_to is not None:
+            expense_import["to"] = expense_to
+        if expense_attach_receipt is not None:
+            expense_import["attach_receipt"] = expense_attach_receipt
+        line_items_import["expenses"] = expense_import
+
+    params = {
+        "client_id": client_id,
+        "line_items_import": line_items_import,
+    }
+
+    if issue_date is not None:
+        params["issue_date"] = issue_date
+    if due_date is not None:
+        params["due_date"] = due_date
+    if payment_term is not None:
+        params["payment_term"] = payment_term
+    if subject is not None:
+        params["subject"] = subject
+    if notes is not None:
+        params["notes"] = notes
+    if number is not None:
+        params["number"] = number
+    if purchase_order is not None:
+        params["purchase_order"] = purchase_order
+    if currency is not None:
+        params["currency"] = currency
+    if tax is not None:
+        params["tax"] = tax
+    if tax2 is not None:
+        params["tax2"] = tax2
+    if discount is not None:
+        params["discount"] = discount
+
+    response = await harvest_request("invoices", params, method="POST")
+    return json.dumps(response, indent=2)
+
+
 if __name__ == "__main__":
     # Initialize and run the server
     mcp.run(transport="stdio")
