@@ -1,5 +1,6 @@
 import os
 import json
+import functools
 import httpx
 from datetime import datetime
 from mcp.server.fastmcp import FastMCP
@@ -58,6 +59,36 @@ async def harvest_request(path, params=None, method="GET"):
         return response.json()
 
 
+def build_body(**kwargs):
+    """Drop None values — use for POST/PATCH JSON bodies."""
+    return {k: v for k, v in kwargs.items() if v is not None}
+
+
+def build_query(**kwargs):
+    """Drop None values and stringify bools/ints — use for GET query params."""
+    params = {}
+    for k, v in kwargs.items():
+        if v is None:
+            continue
+        if isinstance(v, bool):
+            params[k] = "true" if v else "false"
+        elif isinstance(v, int):
+            params[k] = str(v)
+        else:
+            params[k] = v
+    return params
+
+
+def requires_write(func):
+    """Short-circuit write tools when HARVEST_READ_ONLY is set."""
+    @functools.wraps(func)
+    async def wrapper(*args, **kwargs):
+        if HARVEST_READ_ONLY:
+            return READ_ONLY_MESSAGE
+        return await func(*args, **kwargs)
+    return wrapper
+
+
 @mcp.tool()
 async def list_users(is_active: bool = None, page: int = None, per_page: int = None):
     """List all users in your Harvest account.
@@ -67,18 +98,11 @@ async def list_users(is_active: bool = None, page: int = None, per_page: int = N
         page: The page number for pagination
         per_page: The number of records to return per page (1-2000)
     """
-    params = {}
-    if is_active is not None:
-        params["is_active"] = "true" if is_active else "false"
-    else:
-        params["is_active"] = "true"
-    if page is not None:
-        params["page"] = str(page)
-    if per_page is not None:
-        params["per_page"] = str(per_page)
-    else:
-        params["per_page"] = 200
-
+    params = build_query(
+        is_active=is_active if is_active is not None else True,
+        page=page,
+        per_page=per_page if per_page is not None else 200,
+    )
     response = await harvest_request("users", params)
     return json.dumps(response, indent=2)
 
@@ -113,25 +137,19 @@ async def list_time_entries(
         is_running: Pass true to only return running time entries and false to return non-running time entries
         is_billable: Pass true to only return billable time entries and false to return non-billable time entries
     """
-    params = {}
-    if user_id is not None:
-        params["user_id"] = str(user_id)
-    if project_id is not None:
-        params["project_id"] = str(project_id)
-    if from_date is not None:
-        params["from"] = from_date
-    if to_date is not None:
-        params["to"] = to_date
-    if is_running is not None:
-        params["is_running"] = "true" if is_running else "false"
-    if is_billable is not None:
-        params["is_billable"] = "true" if is_billable else "false"
-
+    params = build_query(
+        user_id=user_id,
+        project_id=project_id,
+        is_running=is_running,
+        is_billable=is_billable,
+        **{"from": from_date, "to": to_date},
+    )
     response = await harvest_request("time_entries", params)
     return json.dumps(response, indent=2)
 
 
 @mcp.tool()
+@requires_write
 async def create_time_entry(
     project_id: int,
     task_id: int,
@@ -148,33 +166,25 @@ async def create_time_entry(
         hours: The number of hours spent
         notes: Optional notes about the time entry
     """
-    if HARVEST_READ_ONLY:
-        return READ_ONLY_MESSAGE
-
-    params = {
-        "project_id": project_id,
-        "task_id": task_id,
-        "spent_date": spent_date,
-        "hours": hours,
-    }
-
-    if notes is not None:
-        params["notes"] = str(notes)
-
+    params = build_body(
+        project_id=project_id,
+        task_id=task_id,
+        spent_date=spent_date,
+        hours=hours,
+        notes=str(notes) if notes is not None else None,
+    )
     response = await harvest_request("time_entries", params, method="POST")
     return json.dumps(response, indent=2)
 
 
 @mcp.tool()
+@requires_write
 async def stop_timer(time_entry_id: int):
     """Stop a running timer.
 
     Args:
         time_entry_id: The ID of the running time entry to stop
     """
-    if HARVEST_READ_ONLY:
-        return READ_ONLY_MESSAGE
-
     response = await harvest_request(
         f"time_entries/{time_entry_id}/stop", method="PATCH"
     )
@@ -182,6 +192,7 @@ async def stop_timer(time_entry_id: int):
 
 
 @mcp.tool()
+@requires_write
 async def start_timer(
     project_id: int,
     task_id: int,
@@ -194,18 +205,12 @@ async def start_timer(
         task_id: The ID of the task to associate with the time entry
         notes: Optional notes about the time entry
     """
-    if HARVEST_READ_ONLY:
-        return READ_ONLY_MESSAGE
-
-    params = {
-        "project_id": project_id,
-        "task_id": task_id,
-        "spent_date": datetime.now().strftime("%Y-%m-%d"),
-    }
-
-    if notes is not None:
-        params["notes"] = str(notes)
-
+    params = build_body(
+        project_id=project_id,
+        task_id=task_id,
+        spent_date=datetime.now().strftime("%Y-%m-%d"),
+        notes=str(notes) if notes is not None else None,
+    )
     response = await harvest_request("time_entries", params, method="POST")
     return json.dumps(response, indent=2)
 
@@ -218,12 +223,7 @@ async def list_projects(client_id: int = None, is_active: bool = None):
         client_id: Filter by client ID
         is_active: Pass true to only return active projects and false to return inactive projects
     """
-    params = {}
-    if client_id is not None:
-        params["client_id"] = str(client_id)
-    if is_active is not None:
-        params["is_active"] = "true" if is_active else "false"
-
+    params = build_query(client_id=client_id, is_active=is_active)
     response = await harvest_request("projects", params)
     return json.dumps(response, indent=2)
 
@@ -240,16 +240,87 @@ async def get_project_details(project_id: int):
 
 
 @mcp.tool()
+@requires_write
+async def create_project(
+    client_id: int,
+    name: str,
+    is_billable: bool,
+    bill_by: str,
+    budget_by: str,
+    code: str = None,
+    is_active: bool = None,
+    is_fixed_fee: bool = None,
+    hourly_rate: float = None,
+    budget: float = None,
+    budget_is_monthly: bool = None,
+    notify_when_over_budget: bool = None,
+    over_budget_notification_percentage: float = None,
+    show_budget_to_all: bool = None,
+    cost_budget: float = None,
+    cost_budget_include_expenses: bool = None,
+    fee: float = None,
+    notes: str = None,
+    starts_on: str = None,
+    ends_on: str = None,
+):
+    """Create a new project.
+
+    Args:
+        client_id: The ID of the client to associate with the project
+        name: The name of the project
+        is_billable: Whether the project is billable or not
+        bill_by: The method by which the project is invoiced - "Project", "Tasks", "People", or "none"
+        budget_by: The method by which the project is budgeted - "project", "project_cost", "task", "task_fees", "person", or "none"
+        code: The project code
+        is_active: Whether the project is active or archived
+        is_fixed_fee: Whether the project is a fixed-fee project or not
+        hourly_rate: Rate for projects billed by Project Hourly Rate
+        budget: The budget in hours for the project when budget_by is "project" or "none"
+        budget_is_monthly: Option to have the budget reset every month
+        notify_when_over_budget: Whether project managers should be notified when the project goes over budget
+        over_budget_notification_percentage: Percentage value used to trigger over budget email alerts (0.0 to 100.0)
+        show_budget_to_all: Option to show project budget to all employees (defaults to project managers and up)
+        cost_budget: The monetary budget for the project when budget_by is "project_cost"
+        cost_budget_include_expenses: Option for budget of "project_cost" to include tracked expenses
+        fee: The amount you plan to invoice for the project (only used by fixed-fee projects)
+        notes: Project notes
+        starts_on: Date the project was started (YYYY-MM-DD)
+        ends_on: Date the project will end (YYYY-MM-DD)
+    """
+    params = build_body(
+        client_id=client_id,
+        name=name,
+        is_billable=is_billable,
+        bill_by=bill_by,
+        budget_by=budget_by,
+        code=code,
+        is_active=is_active,
+        is_fixed_fee=is_fixed_fee,
+        hourly_rate=hourly_rate,
+        budget=budget,
+        budget_is_monthly=budget_is_monthly,
+        notify_when_over_budget=notify_when_over_budget,
+        over_budget_notification_percentage=over_budget_notification_percentage,
+        show_budget_to_all=show_budget_to_all,
+        cost_budget=cost_budget,
+        cost_budget_include_expenses=cost_budget_include_expenses,
+        fee=fee,
+        notes=notes,
+        starts_on=starts_on,
+        ends_on=ends_on,
+    )
+    response = await harvest_request("projects", params, method="POST")
+    return json.dumps(response, indent=2)
+
+
+@mcp.tool()
 async def list_clients(is_active: bool = None):
     """List clients with optional filtering.
 
     Args:
         is_active: Pass true to only return active clients and false to return inactive clients
     """
-    params = {}
-    if is_active is not None:
-        params["is_active"] = "true" if is_active else "false"
-
+    params = build_query(is_active=is_active)
     response = await harvest_request("clients", params)
     return json.dumps(response, indent=2)
 
@@ -266,16 +337,39 @@ async def get_client_details(client_id: int):
 
 
 @mcp.tool()
+@requires_write
+async def create_client(
+    name: str,
+    is_active: bool = None,
+    address: str = None,
+    currency: str = None,
+):
+    """Create a new client.
+
+    Args:
+        name: The name of the client
+        is_active: Whether the client is active or archived
+        address: The physical address of the client
+        currency: The currency code the client is billed in (ISO 4217, e.g. "USD", "EUR")
+    """
+    params = build_body(
+        name=name,
+        is_active=is_active,
+        address=address,
+        currency=currency,
+    )
+    response = await harvest_request("clients", params, method="POST")
+    return json.dumps(response, indent=2)
+
+
+@mcp.tool()
 async def list_tasks(is_active: bool = None):
     """List all tasks with optional filtering.
 
     Args:
         is_active: Pass true to only return active tasks and false to return inactive tasks
     """
-    params = {}
-    if is_active is not None:
-        params["is_active"] = "true" if is_active else "false"
-
+    params = build_query(is_active=is_active)
     response = await harvest_request("tasks", params)
     return json.dumps(response, indent=2)
 
@@ -300,21 +394,12 @@ async def get_unsubmitted_timesheets(
         page: The page number for pagination
         per_page: The number of records to return per page (1-2000)
     """
-    params = {}
-    if user_id is not None:
-        params["user_id"] = str(user_id)
-    if from_date is not None:
-        params["from"] = from_date
-    if to_date is not None:
-        params["to"] = to_date
-    if page is not None:
-        params["page"] = str(page)
-    if per_page is not None:
-        params["per_page"] = str(per_page)
-    else:
-        params["per_page"] = "200"
-
-    # Get all time entries first
+    params = build_query(
+        user_id=user_id,
+        page=page,
+        per_page=per_page if per_page is not None else 200,
+        **{"from": from_date, "to": to_date},
+    )
     response = await harvest_request("time_entries", params)
 
     # Filter for unsubmitted entries (those that are not closed)

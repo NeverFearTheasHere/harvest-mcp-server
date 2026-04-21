@@ -23,10 +23,12 @@ The server provides the following functionality:
 ### Projects
 - List projects with filtering options
 - Retrieve detailed project information
+- Create new projects
 
 ### Clients
 - List clients with filtering options
 - Retrieve detailed client information
+- Create new clients
 
 ### Tasks
 - List available tasks with filtering options
@@ -93,7 +95,7 @@ You can modify the server code to add more functionality or customize the existi
 
 ## Read-Only Mode
 
-You can run the server in read-only mode by setting the `HARVEST_READ_ONLY` environment variable to `true`. This disables all write operations (creating time entries, starting timers, and stopping timers) while keeping all read operations available.
+You can run the server in read-only mode by setting the `HARVEST_READ_ONLY` environment variable to `true`. This disables all write operations (creating time entries, starting/stopping timers, creating projects, and creating clients) while keeping all read operations available.
 
 ```json
 {
