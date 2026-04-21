@@ -439,6 +439,219 @@ async def create_invoice_from_time_and_expenses(
     return json.dumps(response, indent=2)
 
 
+@mcp.tool()
+async def list_invoices(
+    client_id: int = None,
+    project_id: int = None,
+    state: str = None,
+    from_date: str = None,
+    to_date: str = None,
+    page: int = None,
+    per_page: int = None,
+):
+    """List all invoices, with optional filtering.
+
+    Args:
+        client_id: Filter by client ID
+        project_id: Filter by project ID
+        state: Filter by invoice state: draft, open, paid, or closed
+        from_date: Only return invoices with an issue_date on or after this date (YYYY-MM-DD)
+        to_date: Only return invoices with an issue_date on or before this date (YYYY-MM-DD)
+        page: The page number for pagination
+        per_page: The number of records to return per page (1-2000)
+    """
+    params = {}
+    if client_id is not None:
+        params["client_id"] = str(client_id)
+    if project_id is not None:
+        params["project_id"] = str(project_id)
+    if state is not None:
+        params["state"] = state
+    if from_date is not None:
+        params["from"] = from_date
+    if to_date is not None:
+        params["to"] = to_date
+    if page is not None:
+        params["page"] = str(page)
+    if per_page is not None:
+        params["per_page"] = str(per_page)
+
+    response = await harvest_request("invoices", params)
+    return json.dumps(response, indent=2)
+
+
+@mcp.tool()
+async def get_invoice_details(invoice_id: int):
+    """Retrieve details for a specific invoice.
+
+    Args:
+        invoice_id: The ID of the invoice to retrieve
+    """
+    response = await harvest_request(f"invoices/{invoice_id}")
+    return json.dumps(response, indent=2)
+
+
+@mcp.tool()
+async def list_invoice_payments(invoice_id: int):
+    """List all payments for a specific invoice.
+
+    Args:
+        invoice_id: The ID of the invoice to retrieve payments for
+    """
+    response = await harvest_request(f"invoices/{invoice_id}/payments")
+    return json.dumps(response, indent=2)
+
+
+@mcp.tool()
+async def create_invoice_payment(
+    invoice_id: int,
+    amount: float,
+    paid_at: str = None,
+    paid_date: str = None,
+    notes: str = None,
+):
+    """Record a payment against an invoice.
+
+    Args:
+        invoice_id: The ID of the invoice to record a payment for
+        amount: The amount of the payment
+        paid_at: Datetime the payment was made (ISO 8601). Defaults to now.
+        paid_date: Date the payment was made (YYYY-MM-DD). Defaults to today.
+        notes: Optional notes about the payment
+    """
+    params = {"amount": amount}
+    if paid_at is not None:
+        params["paid_at"] = paid_at
+    if paid_date is not None:
+        params["paid_date"] = paid_date
+    if notes is not None:
+        params["notes"] = notes
+
+    response = await harvest_request(f"invoices/{invoice_id}/payments", params, method="POST")
+    return json.dumps(response, indent=2)
+
+
+@mcp.tool()
+async def get_uninvoiced_report(
+    from_date: str,
+    to_date: str,
+    page: int = None,
+    per_page: int = None,
+):
+    """Get a report of billable time and expenses that have not yet been invoiced.
+
+    Args:
+        from_date: Start date for the report (YYYY-MM-DD, required)
+        to_date: End date for the report (YYYY-MM-DD, required)
+        page: The page number for pagination
+        per_page: The number of records to return per page (1-2000)
+    """
+    params = {"from": from_date, "to": to_date}
+    if page is not None:
+        params["page"] = str(page)
+    if per_page is not None:
+        params["per_page"] = str(per_page)
+
+    response = await harvest_request("reports/uninvoiced", params)
+    return json.dumps(response, indent=2)
+
+
+@mcp.tool()
+async def update_time_entry(
+    time_entry_id: int,
+    project_id: int = None,
+    task_id: int = None,
+    spent_date: str = None,
+    hours: float = None,
+    notes: str = None,
+):
+    """Update an existing time entry.
+
+    Args:
+        time_entry_id: The ID of the time entry to update
+        project_id: The ID of the project to associate with the time entry
+        task_id: The ID of the task to associate with the time entry
+        spent_date: The date when the time was spent (YYYY-MM-DD)
+        hours: The number of hours spent
+        notes: Notes about the time entry
+    """
+    params = {}
+    if project_id is not None:
+        params["project_id"] = project_id
+    if task_id is not None:
+        params["task_id"] = task_id
+    if spent_date is not None:
+        params["spent_date"] = spent_date
+    if hours is not None:
+        params["hours"] = hours
+    if notes is not None:
+        params["notes"] = str(notes)
+
+    response = await harvest_request(f"time_entries/{time_entry_id}", params, method="PATCH")
+    return json.dumps(response, indent=2)
+
+
+@mcp.tool()
+async def delete_time_entry(time_entry_id: int):
+    """Delete a time entry.
+
+    Args:
+        time_entry_id: The ID of the time entry to delete
+    """
+    async with httpx.AsyncClient() as client:
+        headers = {
+            "Harvest-Account-Id": HARVEST_ACCOUNT_ID,
+            "Authorization": f"Bearer {HARVEST_API_KEY}",
+            "User-Agent": "Harvest MCP Server",
+        }
+        response = await client.delete(
+            f"https://api.harvestapp.com/v2/time_entries/{time_entry_id}",
+            headers=headers,
+        )
+        if response.status_code != 204:
+            raise Exception(f"Harvest API Error: {response.status_code} {response.text}")
+
+    return json.dumps({"deleted": True, "time_entry_id": time_entry_id}, indent=2)
+
+
+@mcp.tool()
+async def list_project_user_assignments(project_id: int, page: int = None, per_page: int = None):
+    """List all user assignments for a specific project.
+
+    Args:
+        project_id: The ID of the project
+        page: The page number for pagination
+        per_page: The number of records to return per page (1-2000)
+    """
+    params = {}
+    if page is not None:
+        params["page"] = str(page)
+    if per_page is not None:
+        params["per_page"] = str(per_page)
+
+    response = await harvest_request(f"projects/{project_id}/user_assignments", params)
+    return json.dumps(response, indent=2)
+
+
+@mcp.tool()
+async def list_project_task_assignments(project_id: int, page: int = None, per_page: int = None):
+    """List all task assignments for a specific project.
+
+    Args:
+        project_id: The ID of the project
+        page: The page number for pagination
+        per_page: The number of records to return per page (1-2000)
+    """
+    params = {}
+    if page is not None:
+        params["page"] = str(page)
+    if per_page is not None:
+        params["per_page"] = str(per_page)
+
+    response = await harvest_request(f"projects/{project_id}/task_assignments", params)
+    return json.dumps(response, indent=2)
+
+
 if __name__ == "__main__":
     # Initialize and run the server
     mcp.run(transport="stdio")
